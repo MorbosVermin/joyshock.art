@@ -1,5 +1,3 @@
-version: '3'
-
 services:
   db:
     image: mysql:latest
@@ -14,34 +12,53 @@ services:
     networks:
       - app-network
 
-  wordpress:
+  joyshock:
     depends_on: 
       - db
     image: wordpress:latest
-    container_name: wordpress
+    container_name: joyshock
     restart: unless-stopped
     env_file: .env
     environment:
       - WORDPRESS_DB_HOST=db:3306
       - WORDPRESS_DB_USER=$MYSQL_USER
       - WORDPRESS_DB_PASSWORD=$MYSQL_PASSWORD
-      - WORDPRESS_DB_NAME=wordpress
+      - WORDPRESS_DB_NAME=$MYSQL_DATABASE
     volumes:
-      - wordpress:/var/www/html
+      - wordpress:/var/www/joyshock.art
     networks:
       - app-network
 
-  webserver:
+  tobyhawk:
+    depends_on: 
+      - db
+    image: wordpress:latest
+    container_name: tobyhawk
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - WORDPRESS_DB_HOST=db:3306
+      - WORDPRESS_DB_USER=$TH_MYSQL_USER
+      - WORDPRESS_DB_PASSWORD=$TH_MYSQL_PASSWORD
+      - WORDPRESS_DB_NAME=$TH_MYSQL_DATABASE
+    volumes:
+      - tobyhawk:/var/www/tobyhawk.com
+    networks:
+      - app-network
+
+  nginx:
     depends_on:
-      - wordpress
+      - joyshock
+      - tobyhawk
     image: nginx:latest
-    container_name: webserver
+    container_name: nginx
     restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - wordpress:/var/www/html
+      - wordpress:/var/www/joyshock.art
+      - tobyhawk:/var/www/tobyhawk.com
       - ./nginx-conf:/etc/nginx/conf.d
       - certbot-etc:/etc/letsencrypt
     networks:
@@ -49,17 +66,19 @@ services:
 
   certbot:
     depends_on:
-      - webserver
+      - nginx
     image: certbot/certbot
     container_name: certbot
     volumes:
       - certbot-etc:/etc/letsencrypt
-      - wordpress:/var/www/html
-    command: certonly --webroot --webroot-path=/var/www/html --email $CERTBOT_EMAIL --agree-tos --no-eff-email --staging -d $DOMAIN -d www.$DOMAIN
+      - wordpress:/var/www/joyshock.art
+      - tobyhawk:/var/www/tobyhawk.com
+    command: for domain in $(ls /var/www); do certonly --webroot --webroot-path=/var/www/$domain --email $CERTBOT_EMAIL --agree-tos --no-eff-email --staging -d $domain -d www.$domain; done
 
 volumes:
   certbot-etc:
   wordpress:
+  tobyhawk:
   dbdata:
 
 networks:

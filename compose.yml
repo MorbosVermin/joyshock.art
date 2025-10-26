@@ -4,10 +4,10 @@ services:
     container_name: db
     restart: unless-stopped
     env_file: .env
-    environment:
-      - MYSQL_DATABASE=wordpress
     volumes: 
       - dbdata:/var/lib/mysql
+      - ./logs/mysql:/var/log/mysql
+      - ./backup:/backup
     command: '--default-authentication-plugin=mysql_native_password'
     networks:
       - app-network
@@ -15,70 +15,52 @@ services:
   joyshock:
     depends_on: 
       - db
-    image: wordpress:latest
+    image: wordpress:6.8-php8.1-fpm-alpine
     container_name: joyshock
     restart: unless-stopped
     env_file: .env
     environment:
       - WORDPRESS_DB_HOST=db:3306
-      - WORDPRESS_DB_USER=$MYSQL_USER
-      - WORDPRESS_DB_PASSWORD=$MYSQL_PASSWORD
-      - WORDPRESS_DB_NAME=$MYSQL_DATABASE
+      - WORDPRESS_DB_USER=$JOYSHOCK_MYSQL_USER
+      - WORDPRESS_DB_PASSWORD=$JOYSHOCK_MYSQL_PASSWORD
+      - WORDPRESS_DB_NAME=$JOYSHOCK_MYSQL_DATABASE
     volumes:
-      - wordpress:/var/www/joyshock.art
-    networks:
-      - app-network
-
-  tobyhawk:
-    depends_on: 
-      - db
-    image: wordpress:latest
-    container_name: tobyhawk
-    restart: unless-stopped
-    env_file: .env
-    environment:
-      - WORDPRESS_DB_HOST=db:3306
-      - WORDPRESS_DB_USER=$TH_MYSQL_USER
-      - WORDPRESS_DB_PASSWORD=$TH_MYSQL_PASSWORD
-      - WORDPRESS_DB_NAME=$TH_MYSQL_DATABASE
-    volumes:
-      - tobyhawk:/var/www/tobyhawk.com
+      - ./www/joyshock.art:/var/www/html
+      - ./logs/joyshock.art:/var/log/apache2
+      - ./backup:/backup
     networks:
       - app-network
 
   nginx:
     depends_on:
       - joyshock
-      - tobyhawk
     image: nginx:latest
     container_name: nginx
     restart: unless-stopped
+    env_file: .env
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - wordpress:/var/www/joyshock.art
-      - tobyhawk:/var/www/tobyhawk.com
+      - ./logs/nginx:/var/log/nginx
+      - ./www:/var/www/
       - ./nginx-conf:/etc/nginx/conf.d
-      - certbot-etc:/etc/letsencrypt
+      - ./certbot/etc:/etc/letsencrypt
     networks:
       - app-network
 
   certbot:
-    depends_on:
-      - nginx
     image: certbot/certbot
     container_name: certbot
+    env_file: .env
     volumes:
-      - certbot-etc:/etc/letsencrypt
-      - wordpress:/var/www/joyshock.art
-      - tobyhawk:/var/www/tobyhawk.com
-    command: for domain in $(ls /var/www); do certonly --webroot --webroot-path=/var/www/$domain --email $CERTBOT_EMAIL --agree-tos --no-eff-email --staging -d $domain -d www.$domain; done
+      - ./certbot/etc:/etc/letsencrypt
+      - ./certbot/bin:/tmp
+      - ./www:/var/www/
+      - ./logs/letsencrypt:/var/log/letsencrypt
+    command: certonly --webroot --webroot-path=/var/www/joyshock.art --email $CERTBOT_EMAIL --agree-tos --no-eff-email --force-renewal -d joyshock.art -d www.joyshock.art
 
 volumes:
-  certbot-etc:
-  wordpress:
-  tobyhawk:
   dbdata:
 
 networks:

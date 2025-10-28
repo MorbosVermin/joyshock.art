@@ -15,7 +15,7 @@ services:
   joyshock:
     depends_on: 
       - db
-    image: wordpress:6.8-php8.1-fpm-alpine
+    image: wordpress:6.8-php8.4-fpm-alpine
     container_name: joyshock
     restart: unless-stopped
     env_file: .env
@@ -44,7 +44,7 @@ services:
     volumes:
       - ./logs/nginx:/var/log/nginx
       - ./www:/var/www/
-      - ./nginx-conf:/etc/nginx/conf.d
+      - ./nginx-conf:/etc/nginx/
       - ./certbot/etc:/etc/letsencrypt
     networks:
       - app-network
